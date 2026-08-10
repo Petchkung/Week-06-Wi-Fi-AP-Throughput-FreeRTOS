@@ -98,17 +98,16 @@ xSemaphoreGive(mutex)           xSemaphoreGive(mutex)
 
 | ครั้งที่ | Temperature (°C) | Humidity (%) | Light Lux | Timestamp (ms) |
 | :------: | :--------------: | :----------: | :-------: | :------------: |
-|  **1**   |                  |              |           |                |
-|  **2**   |                  |              |           |                |
-|  **3**   |                  |              |           |                |
+|  **1**   |    26.8              |      50.2        |      409     |          216610      |
+|  **2**   |      33.6            |       58.1       |     274      |         252850       |
+|  **3**   |        34.0          |       65.3       |     621      |       257380         |
 
 ### 7.2 ทดสอบ JSON API (`/api/data`)
 
 บันทึก Raw JSON Response จาก Browser:
 
-```json
+<img width="868" height="1887" alt="image" src="https://github.com/user-attachments/assets/b5c1a260-eaf5-432c-b1e7-5fec7fff1e86" />
 
-```
 
 ---
 
