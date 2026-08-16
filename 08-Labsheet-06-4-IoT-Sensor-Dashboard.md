@@ -114,9 +114,37 @@ xSemaphoreGive(mutex)           xSemaphoreGive(mutex)
 ## 8. คำถามท้ายการทดลอง (Post-Lab Questions)
 
 1. เหตุใดจึงต้องใช้ **Mutex** ในการป้องกันการเข้าถึงตัวแปร `g_latest_data` ร่วมกันระหว่าง `vNetworkTask` และ HTTP Handler? ถ้าไม่ใช้จะเกิดอะไรขึ้น?
-2. `esp_http_server` รัน Handler บน Thread ใด — เป็น Thread เดียวกับ FreeRTOS Task ของเราหรือไม่?
-3. การที่ Dashboard ใช้ `<meta http-equiv="refresh" content="2">` แทนที่จะใช้ JavaScript `fetch()` มีข้อดีและข้อเสียอย่างไร?
+```
+สาเหตุที่ต้องใช้ ตัวแปรประเภทโครงสร้างข้อมูล (Structure) หรือข้อมูลขนาดใหญ่กว่า 32-bit ไม่สามารถอ่าน/เขียนได้ในคำสั่ง Assembly เพียงคำสั่งเดียว (Non-atomic Operation) Mutex จะช่วยสร้าง Critical Section เพื่อรับประกันว่าจะไม่มี Thread อื่นเข้ามาแทรกในขณะที่กำลังอ่านหรือเขียนข้อมูล
 
+ถ้าไม่ใช้จะเกิดอะไรขึ้น?
+
+- Data Corruption (ข้อมูลเสียหาย) เกิดภาวะ Race Condition หาก vNetworkTask กำลังเขียนข้อมูลใหม่ลงไปครึ่งหนึ่ง แล้วถูก OS สลับไปให้ HTTP Handler อ่านข้อมูลไปส่งเว็บพอดี HTTP Handler จะได้ข้อมูลที่พิการ/ผสมกันระหว่างค่าเก่ากับค่าใหม่ (เช่น ค่า RSSI เป็นของใหม่ แต่ MAC Address เป็นของเก่า)
+
+- Memory Crash หากข้อมูลเป็น Pointer หรือ Dynamic Memory การอ่านข้อมูลขณะกำลังถูกเปลี่ยนค่าอาจทำให้เกิด Guru Meditation Error (LoadProhibited / StoreProhibited) จน ESP32 รีเซ็ตตัวเองได้
+```
+2. `esp_http_server` รัน Handler บน Thread ใด — เป็น Thread เดียวกับ FreeRTOS Task ของเราหรือไม่?
+```
+ไม่ใช่ Thread เดียวกับ Task ของเรา esp_http_server จะสร้าง FreeRTOS Task ของตัวเองขึ้นมาต่างหาก (ชื่อ Task โดยทั่วไปคือ httpd) เพื่อทำหน้าที่เป็น Web Server รอรับ Request และประมวลผล Handler
+
+การทำงานร่วมกัน Handler จึงเปรียบเสมือน Thread ภายนอกที่วิ่งมาขออ่านตัวแปร g_latest_data ข้าม Task จึงเป็นเหตุผลสำคัญที่ ต้องใช้ Mutex คุมการเข้าถึงตัวแปรนี้ระหว่าง Task หลักของเรากับ Task ของ httpd
+```
+3. การที่ Dashboard ใช้ `<meta http-equiv="refresh" content="2">` แทนที่จะใช้ JavaScript `fetch()` มีข้อดีและข้อเสียอย่างไร?
+```
+ข้อดี <meta http-equiv="refresh">
+- เขียนง่ายมาก ไม่ต้องใช้โค้ด JS แม้แต่บรรทัดเดียว
+- รองรับทุกเบราว์เซอร์ ทำงานได้แม้อยู่บนอุปกรณ์เก่ามากๆ หรือเบราว์เซอร์ที่ปิด JS
+ข้อเสีย
+- หน้าจอกะพริบ (Flicker) เบราว์เซอร์ต้องโหลดหน้าเว็บ HTML ใหม่ทั้งหมดทุก 2 วินาที
+- เปลืองทรัพยากร ESP32 ต้องสร้างและส่งข้อความ HTML ใหม่ทั้งหน้าซ้ำๆ ทุกๆ 2 วินาที
+
+ข้อดี JavaScript fetch() (AJAX)
+- ลื่นไหล (Smooth UI) อัปเดตเฉพาะจุดโดยหน้าจอไม่กะพริบ
+- ประหยัด RAM/CPU ESP32 ส่งเฉพาะข้อมูล JSON เล็กๆ ไม่ต้องส่งไฟล์ HTML ใหม่ทั้งหน้า
+ข้อเสีย
+- ซับซ้อนขึ้น ต้องเขียนโค้ด JS ฝั่งหน้าเว็บ และต้องทำ API Endpoint (เช่น /api/data) ฝั่ง ESP32 เพิ่มเติม
+
+```
 ---
 
 ## 9. ความรู้เพิ่มเติม: ESP-IDF `esp_http_server` API
