@@ -90,30 +90,33 @@ classDiagram
 
 1. เหตุใด IP Address เริ่มต้นของ ESP32 SoftAP จึงเป็น `192.168.4.1` และ DHCP Server บน ESP32 เริ่มแจกจ่าย IP ที่หมายเลขใด?
 ```
-เมื่อ ESP32 ทำงานในโหมด SoftAP ESP32 จะทำหน้าที่เป็น Access Point และเป็น Gateway ของเครือข่ายย่อย จึงกำหนด IP Address เริ่มต้นของตัวเองเป็น 192.168.4.1 ซึ่งเป็นค่าเริ่มต้นที่ ESP-IDF กำหนดไว้สำหรับ SoftAP
+สาเหตุที่เป็น 192.168.4.1: เป็นค่ามาตรฐานตั้งต้น (Default IP) ที่ทาง Espressif กำหนดไว้ในเฟรมเวิร์ก ESP-IDF / LwIP stack เพื่อหลีกเลี่ยงการชนกับวง IP ยอดนิยมของ Home Router ทั่วไป (เช่น 192.168.0.x หรือ 192.168.1.x) ทำให้ผู้ใช้เชื่อมต่อเน็ตบ้านและ SoftAP ของ ESP32 พร้อมกันได้โดยไม่เกิด Route ขัดแย้ง
 
-ส่วน DHCP Server ที่ทำงานอยู่บน ESP32 จะใช้ IP 192.168.4.1 เป็น Gateway และเริ่มแจก IP Address ให้กับ Client ในช่วง 192.168.4.x โดยทั่วไป Client ตัวแรกจะได้รับ IP เช่น 192.168.4.2 จาก DHCP
+IP แรกที่แจก: เริ่มต้นที่ 192.168.4.2 (แจกเรียงลำดับไปเรื่อยๆ .3, .4, .5)
 ```
 2. สมาชิกตัวแปร `mac` ในโครงสร้าง `wifi_event_ap_staconnected_t` สามารถนำไปประยุกต์ใช้ทำระบบความปลอดภัยขั้นสูง (เช่น MAC Filtering) ได้อย่างไร?
 ```
-ตัวแปร mac ใช้เก็บ MAC Address ของ Client ที่กำลังเชื่อมต่อเข้ามายัง ESP32 SoftAP ทำให้โปรแกรมสามารถตรวจสอบได้ว่าอุปกรณ์ที่พยายามเชื่อมต่อเป็นอุปกรณ์ที่ได้รับอนุญาตหรือไม่
+เมื่อมีอุปกรณ์เชื่อมต่อเข้ามา Event Handler จะดึงค่า MAC Address ของ Client ผ่านโครงสร้างข้อมูลดังกล่าว จากนั้นนำไปทำความปลอดภัยได้ดังนี้
 
-ตัวอย่างเช่น สามารถสร้างรายการ MAC Address ที่อนุญาตไว้ล่วงหน้า (Whitelist) แล้วเมื่อเกิด WIFI_EVENT_AP_STACONNECTED ก็ตรวจสอบค่า mac กับรายการดังกล่าว
+White-list Verification นำ MAC ที่จับได้ไปเทียบกับรายชื่อในตารางที่อนุญาต (ใน Flash/NVS) หาก ไม่อยู่ในรายการ ให้สั่งตัดการเชื่อมต่อทันทีด้วยฟังก์ชัน esp_wifi_deauth_sta(aid)
 
-ถ้า MAC Address อยู่ใน Whitelist → อนุญาตให้ใช้งาน
-ถ้า MAC Address ไม่อยู่ในรายการ → ปฏิเสธหรือดำเนินการตัดการเชื่อมต่อ
+Dynamic Blacklisting ใช้ตรวจจับพฤติกรรมผิดปกติ เช่น หาก MAC เดิมพยายามส่ง Request ผิดพลาดซ้ำๆ หรือยิงสแปม ให้บันทึก MAC นั้นลง Blacklist เพื่อปฏิเสธการเชื่อมต่อชั่วคราว
 
-จึงสามารถนำ mac ไปใช้เป็นส่วนหนึ่งของระบบ MAC Filtering / Access Control เพื่อจำกัดอุปกรณ์ที่สามารถเข้าถึงเครือข่ายหรือบริการของ ESP32 ได้
-
-อย่างไรก็ตาม MAC Filtering ไม่ควรใช้เป็นระบบรักษาความปลอดภัยเพียงอย่างเดียว เพราะ MAC Address สามารถถูกปลอมแปลง (MAC Spoofing) ได้ ควรใช้ร่วมกับการเข้ารหัส Wi-Fi และการยืนยันตัวตนอื่นๆ
+Security Caveat (ข้อควรระวัง) MAC Address สามารถถูกปลอมแปลง (Spoofing) ได้ง่ายด้วยซอฟต์แวร์ จึงควรร่วมกับการยืนยันตัวตนชั้นอื่น (เช่น Token หรือ Password) เสมอ
 ```
 3. หากมี Client พยายามเชื่อมต่อเป็นเครื่องที่ 5 (เกินค่า `max_connection = 4`) จะเกิดเหตุการณ์ใดขึ้นในระดับสัญญาณวิทยุ?
 ```
-เมื่อกำหนด max_connection = 4 หมายความว่า ESP32 SoftAP สามารถรองรับ Client ที่เชื่อมต่อพร้อมกันได้สูงสุด 4 เครื่อง
+ในระดับสัญญาณวิทยุ (802.11 Wi-Fi Layer) จะเกิดลำดับขั้นตอนดังนี้
 
-เมื่อมี Client เครื่องที่ 5 พยายามเชื่อมต่อ ESP32 จะไม่สามารถรับ Client เพิ่มได้ เนื่องจากจำนวนการเชื่อมต่อถึงขีดจำกัดแล้ว ดังนั้นการเชื่อมต่อของเครื่องที่ 5 จะไม่สำเร็จ และจะไม่เกิด WIFI_EVENT_AP_STACONNECTED สำหรับ Client เครื่องนั้น
+1. Probe Request / Response Client เครื่องที่ 5 ส่ง Probe Request และ ESP32 ยังคงตอบกลับ Probe Response ตามปกติ (บอกว่ามี AP นี้อยู่)
 
-ในระดับสัญญาณวิทยุ Client เครื่องที่ 5 อาจยังสามารถ มองเห็น SSID และส่งเฟรมเพื่อขอเชื่อมต่อ (Authentication/Association) ได้ แต่ ESP32 จะไม่ยอมรับการ Association เนื่องจากจำนวน Client เต็ม ทำให้ Client ไม่สามารถเข้าสู่สถานะเชื่อมต่อกับ AP ได้
+2. Authentication: Client ส่ง Authentication Frame และ ESP32 จะตอบกลับ Successful
+
+3. Association Request / Response (จุดปฏิเสธ) Client ส่ง Association Request เพื่อขอเข้าใช้งาน
+
+4. การปฏิเสธสัญญาณ ESP32 จะตอบกลับด้วย Association Response (Status Code 17 - Association rejected because AP is unable to handle additional associated stations)
+
+5. ผลลัพธ์ ESP32 จะไม่ออก Deauthentication แต่จะปฏิเสธไม่รับเข้าเป็นสมาชิก (Association Fail) ส่งผลให้ฝั่ง Client ขึ้นสถานะ เช่น "Failed to connect" หรือ "Unable to join the network" โดยที่ DHCP จะไม่มีการแจกจ่าย IP ใดๆ ออกไป
 ```
 
 
